@@ -1,0 +1,193 @@
+// Prisma Schema for Telegram Poster Bot
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User (Administrator)
+model User {
+  id              Int       @id @default(autoincrement())
+  telegram_id     BigInt    @unique
+  username        String?
+  first_name      String?
+  last_name       String?
+  timezone        String    @default("Europe/Moscow")
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  last_activity_at DateTime?
+
+  // Relations
+  action_logs     ActionLog[]
+
+  @@index([last_activity_at])
+  @@map("users")
+}
+
+// Telegram Channels
+model Channel {
+  id              Int       @id @default(autoincrement())
+  channel_id      BigInt    @unique
+  channel_username String?
+  channel_title   String
+  is_active       Boolean   @default(true)
+  date_added      DateTime  @default(now())
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  // Relations
+  posts           Post[]
+
+  @@index([is_active])
+  @@index([date_added])
+  @@map("channels")
+}
+
+// Posts
+model Post {
+  id              Int       @id @default(autoincrement())
+  channel_id      Int
+  text            String    @db.Text
+  status          PostStatus @default(DRAFT)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  published_at    DateTime?
+  telegram_message_id BigInt?
+
+  // Relations
+  channel         Channel   @relation(fields: [channel_id], references: [id])
+  media           Media[]
+  buttons         PostButton[]
+  schedule        Schedule?
+  statistics      PostStatistics?
+  action_logs     ActionLog[]
+
+  @@index([channel_id])
+  @@index([status])
+  @@index([created_at])
+  @@index([published_at])
+  @@map("posts")
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+// Media Files
+model Media {
+  id              Int       @id @default(autoincrement())
+  post_id         Int
+  file_id         String
+  file_type       MediaType
+  file_size       Int?
+  file_unique_id  String?
+  caption         String?   @db.Text
+  position        Int       @default(0)
+  created_at      DateTime  @default(now())
+
+  // Relations
+  post            Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@index([post_id])
+  @@index([position])
+  @@map("media")
+}
+
+enum MediaType {
+  PHOTO
+  VIDEO
+  DOCUMENT
+  ANIMATION
+}
+
+// Inline Buttons
+model PostButton {
+  id              Int       @id @default(autoincrement())
+  post_id         Int
+  text            String
+  url             String
+  row             Int       @default(0)
+  position        Int       @default(0)
+  created_at      DateTime  @default(now())
+
+  // Relations
+  post            Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@index([post_id])
+  @@index([post_id, row, position])
+  @@map("post_buttons")
+}
+
+// Schedules
+model Schedule {
+  id              Int       @id @default(autoincrement())
+  post_id         Int       @unique
+  scheduled_at    DateTime
+  published_at    DateTime?
+  status          ScheduleStatus @default(PENDING)
+  attempts        Int       @default(0)
+  last_error      String?   @db.Text
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  // Relations
+  post            Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@index([scheduled_at])
+  @@index([status])
+  @@index([status, scheduled_at])
+  @@map("schedules")
+}
+
+enum ScheduleStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+// Post Statistics
+model PostStatistics {
+  id              Int       @id @default(autoincrement())
+  post_id         Int       @unique
+  views_count     Int       @default(0)
+  forwards_count  Int       @default(0)
+  reactions_count Int       @default(0)
+  last_updated_at DateTime  @default(now())
+  created_at      DateTime  @default(now())
+
+  // Relations
+  post            Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@index([last_updated_at])
+  @@map("post_statistics")
+}
+
+// Action Logs
+model ActionLog {
+  id              Int       @id @default(autoincrement())
+  user_id         Int?
+  post_id         Int?
+  action          String
+  entity_type     String?
+  entity_id       Int?
+  parameters      Json?
+  success         Boolean   @default(true)
+  error_message   String?   @db.Text
+  created_at      DateTime  @default(now())
+
+  // Relations
+  user            User?     @relation(fields: [user_id], references: [id])
+  post            Post?     @relation(fields: [post_id], references: [id])
+
+  @@index([user_id])
+  @@index([action])
+  @@index([created_at])
+  @@map("action_logs")
+}
