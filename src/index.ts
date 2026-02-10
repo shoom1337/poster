@@ -159,11 +159,15 @@ bot.on(':forward_origin:channel', async (ctx) => {
     try {
       await addChannel(channelId, channelTitle, channelUsername);
 
+      // Escape special characters for Markdown
+      const escapedTitle = channelTitle.replace(/_/g, '\\_');
+      const escapedUsername = channelUsername ? channelUsername.replace(/_/g, '\\_') : '';
+
       await ctx.reply(
         `✅ Канал успешно добавлен!\n\n` +
-        `📢 ${channelTitle}\n` +
+        `📢 ${escapedTitle}\n` +
         `ID: \`${channelId}\`\n` +
-        (channelUsername ? `Username: @${channelUsername}\n` : '') +
+        (channelUsername ? `Username: @${escapedUsername}\n` : '') +
         `\nТеперь вы можете публиковать посты в этот канал.\n` +
         `Используйте /channels для управления каналами.`,
         { parse_mode: 'Markdown' }
