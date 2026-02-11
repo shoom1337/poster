@@ -2,8 +2,9 @@
  * Poster Bot - Telegram bot for managing scheduled posts
  */
 import { Bot, session } from 'grammy';
-import { conversations, createConversation } from '@grammyjs/conversations';
+import { conversations } from '@grammyjs/conversations';
 import { parseMode } from '@grammyjs/parse-mode';
+import { MyContext } from './types/context.js';
 import { logger } from './utils/logger.js';
 import { checkDatabaseConnection, disconnectDatabase } from './utils/db.js';
 import { checkRedisConnection, disconnectRedis, redis } from './utils/redis.js';
@@ -12,7 +13,16 @@ import { loggingMiddleware, errorMiddleware } from './bot/middlewares/logging.js
 import { startCommand } from './bot/commands/start.js';
 import { helpCommand } from './bot/commands/help.js';
 import { channelsCommand } from './bot/commands/channels.js';
+import { newpostCommand } from './bot/commands/newpost.js';
+import { editpostCommand } from './bot/commands/editpost.js';
+import { draftsCommand } from './bot/commands/drafts.js';
+import { scheduleCommand } from './bot/commands/schedule.js';
 import { addChannel } from './services/channelService.js';
+import { registerTextInputHandler } from './bot/handlers/textInput.js';
+import { registerMediaInputHandler } from './bot/handlers/mediaInput.js';
+import { registerButtonInputHandler } from './bot/handlers/buttonInput.js';
+import { registerPostCallbacks } from './bot/handlers/postCallbacks.js';
+import { startScheduler, stopScheduler } from './services/postSchedulerService.js';
 import http from 'http';
 
 // Load environment variables
@@ -25,7 +35,7 @@ if (!BOT_TOKEN) {
 }
 
 // Create bot instance
-const bot = new Bot(BOT_TOKEN);
+const bot = new Bot<MyContext>(BOT_TOKEN);
 
 // Install parse mode plugin
 bot.api.config.use(parseMode('HTML'));
@@ -63,30 +73,20 @@ bot.use(conversations());
 bot.command('start', startCommand);
 bot.command('help', helpCommand);
 bot.command('channels', channelsCommand);
+bot.command('newpost', newpostCommand);
+bot.command('editpost', editpostCommand);
+bot.command('drafts', draftsCommand);
+bot.command('schedule', scheduleCommand);
+
+// Register input handlers
+registerTextInputHandler(bot);
+registerMediaInputHandler(bot);
+registerButtonInputHandler(bot);
+
+// Register callback handlers
+registerPostCallbacks(bot);
 
 // Placeholder commands (to be implemented)
-bot.command('newpost', async (ctx) => {
-  await ctx.reply(
-    '📝 Создание публикации\n\n' +
-    'Эта функция будет доступна в следующей версии.\n' +
-    'Используйте /help для просмотра доступных команд.'
-  );
-});
-
-bot.command('drafts', async (ctx) => {
-  await ctx.reply(
-    '📋 Список черновиков\n\n' +
-    'У вас пока нет черновиков.'
-  );
-});
-
-bot.command('schedule', async (ctx) => {
-  await ctx.reply(
-    '📅 Календарь публикаций\n\n' +
-    'Эта функция будет доступна в следующей версии.'
-  );
-});
-
 bot.command('statistics', async (ctx) => {
   await ctx.reply(
     '📊 Статистика\n\n' +
@@ -98,9 +98,39 @@ bot.command('cancel', async (ctx) => {
   await ctx.reply('✅ Текущее действие отменено');
 });
 
-// Handle callback queries
+// Handle quick action buttons from /start
 bot.on('callback_query:data', async (ctx) => {
   const data = ctx.callbackQuery.data;
+
+  if (data === 'quick_newpost') {
+    await ctx.answerCallbackQuery();
+    await newpostCommand(ctx as any);
+    return;
+  }
+
+  if (data === 'quick_drafts') {
+    await ctx.answerCallbackQuery();
+    await draftsCommand(ctx as any);
+    return;
+  }
+
+  if (data === 'quick_schedule') {
+    await ctx.answerCallbackQuery();
+    await scheduleCommand(ctx as any);
+    return;
+  }
+
+  if (data === 'quick_channels') {
+    await ctx.answerCallbackQuery();
+    await channelsCommand(ctx as any);
+    return;
+  }
+
+  if (data === 'quick_help') {
+    await ctx.answerCallbackQuery();
+    await helpCommand(ctx as any);
+    return;
+  }
 
   if (data === 'add_channel') {
     await ctx.answerCallbackQuery();
@@ -157,7 +187,7 @@ bot.on(':forward_origin:channel', async (ctx) => {
 
     // Add channel to database
     try {
-      await addChannel(channelId, channelTitle, channelUsername);
+      await addChannel(BigInt(channelId), channelTitle, channelUsername);
 
       // Escape special characters for Markdown
       const escapedTitle = channelTitle.replace(/_/g, '\\_');
@@ -215,6 +245,10 @@ async function shutdown(signal: string) {
   logger.info(`Received ${signal}, shutting down gracefully...`);
 
   try {
+    // Stop scheduler
+    stopScheduler();
+    logger.info('Scheduler stopped');
+
     // Stop bot
     await bot.stop();
     logger.info('Bot stopped');
@@ -272,6 +306,10 @@ async function start() {
     healthServer.listen(HEALTHCHECK_PORT, () => {
       logger.info(`Healthcheck server listening on port ${HEALTHCHECK_PORT}`);
     });
+
+    // Start post scheduler
+    startScheduler(bot);
+    logger.info('Post scheduler started');
 
     // Start bot with long polling
     logger.info('Starting bot with long polling...');

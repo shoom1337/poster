@@ -2,7 +2,7 @@
  * Post service - business logic for post management
  */
 import { prisma } from '../utils/db.js';
-import { Post, PostStatus, Media, PostButton, Schedule } from '@prisma/client';
+import { Post, PostStatus, Media, MediaType, PostButton, Schedule } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 
 export interface CreatePostData {
@@ -22,9 +22,18 @@ export interface UpdatePostData {
  */
 export async function createPost(data: CreatePostData): Promise<Post> {
   try {
+    logger.info('createPost called', {
+      channelId: data.channelId,
+      channelIdType: typeof data.channelId,
+      textLength: data.text?.length,
+      status: data.status
+    });
+
     const post = await prisma.post.create({
       data: {
-        channel_id: data.channelId,
+        channel: {
+          connect: { id: data.channelId },
+        },
         text: data.text,
         status: data.status || PostStatus.DRAFT,
       },
@@ -129,7 +138,7 @@ export async function getDrafts(limit: number = 10) {
 export async function addMedia(
   postId: number,
   fileId: string,
-  fileType: string,
+  fileType: MediaType,
   fileSize?: number,
   caption?: string
 ): Promise<Media> {
@@ -143,7 +152,7 @@ export async function addMedia(
       data: {
         post_id: postId,
         file_id: fileId,
-        file_type: fileType as any,
+        file_type: fileType,
         file_size: fileSize,
         caption,
         position: mediaCount,

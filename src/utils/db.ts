@@ -19,11 +19,11 @@ export const prisma =
   });
 
 // Log Prisma warnings and errors
-prisma.$on('warn', (e) => {
+prisma.$on('warn' as never, (e: { message: string }) => {
   logger.warn('Prisma warning', { message: e.message });
 });
 
-prisma.$on('error', (e) => {
+prisma.$on('error' as never, (e: { message: string }) => {
   logger.error('Prisma error', { message: e.message });
 });
 

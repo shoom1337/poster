@@ -167,3 +167,19 @@ export function formatErrorMessage(error: Error | string): string {
 
   return message;
 }
+
+/**
+ * Format date and time: "14 февраля 2026, 15:30"
+ */
+export function formatDateTime(date: Date | string): string {
+  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  return format(dateObj, 'd MMMM yyyy, HH:mm', { locale: ru });
+}
+
+/**
+ * Format date short: "14 фев"
+ */
+export function formatDateShort(date: Date | string): string {
+  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  return format(dateObj, 'd MMM', { locale: ru });
+}

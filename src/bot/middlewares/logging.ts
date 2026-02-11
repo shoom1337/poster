@@ -2,14 +2,15 @@
  * Logging middleware
  * Logs all incoming updates and commands
  */
-import { Context, NextFunction } from 'grammy';
+import { NextFunction } from 'grammy';
+import { MyContext } from '../../types/context.js';
 import { logger, logCommand } from '../../utils/logger.js';
 import { prisma } from '../../utils/db.js';
 
 /**
  * Log incoming updates
  */
-export async function loggingMiddleware(ctx: Context, next: NextFunction) {
+export async function loggingMiddleware(ctx: MyContext, next: NextFunction) {
   const userId = ctx.from?.id;
   const chatId = ctx.chat?.id;
   const messageText = ctx.message?.text || ctx.callbackQuery?.data;
@@ -19,7 +20,7 @@ export async function loggingMiddleware(ctx: Context, next: NextFunction) {
     userId,
     chatId,
     messageText,
-    updateType: ctx.updateType,
+    updateType: ctx.update ? Object.keys(ctx.update).find(k => k !== 'update_id') : 'unknown',
   });
 
   // Update user's last activity
@@ -58,7 +59,7 @@ export async function loggingMiddleware(ctx: Context, next: NextFunction) {
 /**
  * Error handling middleware
  */
-export async function errorMiddleware(ctx: Context, next: NextFunction) {
+export async function errorMiddleware(ctx: MyContext, next: NextFunction) {
   try {
     await next();
   } catch (error) {

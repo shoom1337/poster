@@ -32,6 +32,7 @@
     "ioredis": "^5.4.2",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.16",
+    "telegram-inline-calendar": "^2.3.3",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0"
   },
